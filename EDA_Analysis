@@ -1,1 +1,115 @@
+import re
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+import pandas as pd
+from langdetect import detect
 
+
+url = 'https://ir.89bio.com/press-releases&page=0'
+response = requests.get(url)
+soup = BeautifulSoup(response.text, 'html.parser')
+page_url ='https://ir.89bio.com/press-releases' 
+all_pages = []
+for page_number in range(0,12):
+    
+    url = f'{page_url}?page={page_number}'
+    all_pages.append(url)
+all_links = []
+for page in all_pages :
+    #soup = BeautifulSoup(page, 'html.parser')
+    response = requests.get(page)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    
+    # Find all unordered lists with class 'whole-item'
+    all_articles = soup.find_all('article', class_='clearfix node node--nir-news--nir-widget-list node--type-nir-news node--view-mode-nir-widget-list node--promoted')
+
+    for article in all_articles:
+        # Find all list items within the current unordered list
+        a_tag = article.find('a')                   
+
+        # Check if an anchor tag is found
+        if a_tag is not None:
+            # Extract the 'href' attribute and append to the list
+            link = a_tag.get('href')
+            all_links.append(link)
+
+        # Now all_links should contain the href attributes from the anchor tags within the specified structure.
+proper_links = []
+base_url = 'https://ir.89bio.com/' 
+for relative_url in all_links:
+    complete_url = urljoin(base_url, relative_url)
+    proper_links.append(complete_url)
+import asyncio
+import nest_asyncio
+
+import aiohttp
+from bs4 import BeautifulSoup  # Make sure to install BeautifulSoup using: pip install beautifulsoup4
+nest_asyncio.apply()
+async def fetch_data(url):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            html_content = await response.text()
+            return url, html_content
+
+async def scrape_data(url, html_content):
+    # Use BeautifulSoup to parse the HTML content
+    soup = BeautifulSoup(html_content, 'html.parser')
+    article = soup.find('article',class_='node node--nir-news--full node--type-nir-news node--view-mode-full node--promoted')
+
+    heading = article.find('div',class_='field__item').text.strip()
+
+
+    published_date = article.find('div', class_='field field--name-field-nir-news-date field--type-datetimezone field--label-hidden').text.strip()
+
+    company = '89bio Pharma'
+    # Initialize a list to store the elements in order
+    link_data = []
+    data_list = ['NA', heading, published_date, '',link,company]  # Initialize data_list with default values
+
+    condition_met = False
+   # phrase_02 = 'Disclaimer'
+    phrase_01 = 'About 89bio'
+
+    # Extract data based on HTML elements (modify this based on your HTML structure)
+    for element in article.find_all(['ol','h2','h3', 'ul', 'table', 'p']):
+        if 'h2' == element.name or 'h3' == element.name:
+            link_data.append(element.text.strip())
+        elif 'ul' == element.name:
+            link_data.append(element.text.strip())
+        elif 'ol' == element.name:
+            link_data.append(element.text.strip())
+        elif 'table' == element.name:
+            table = []
+            for row in element.find_all('tr'):
+                # Extract data from each cell in the row
+                row_data = [cell.text.strip() for cell in row.find_all(['td', 'th'])]
+                table.append(row_data)
+            link_data.append(table)
+        elif 'p' == element.name:
+
+            link_data.append(element.text.strip())
+
+    
+    link_data_flattened = [' '.join(map(str, item)) for sublist in link_data for item in sublist]
+    result = ''.join(link_data_flattened)
+    print(result)
+    data_list[3] = result  # Update the result in data_list
+    return data_list
+
+async def main():
+   
+
+    # Use asyncio.gather to fetch and scrape data from multiple URLs concurrently
+    fetch_tasks = [fetch_data(url) for url in proper_links]
+    fetch_results = await asyncio.gather(*fetch_tasks)
+
+    scrape_tasks = [scrape_data(url, html_content) for url, html_content in fetch_results]
+    scrape_results = await asyncio.gather(*scrape_tasks)
+
+    # Process the results
+    for data in scrape_results:
+        print(data)
+
+# Run the event loop to execute the asynchronous code
+asyncio.run(main())
