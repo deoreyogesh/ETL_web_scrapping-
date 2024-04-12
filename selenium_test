@@ -1,0 +1,55 @@
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time
+
+# Set up the WebDriver
+browser = webdriver.Chrome()
+links = []
+# Navigate to the webpage
+url = 'https://www.roche.com/media/releases'
+browser.get(url)
+
+# Wait for the cookie pop-up to appear (if necessary)
+reject_button = WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="onetrust-reject-all-handler"]')))
+reject_button.click()  # Reject cookies
+
+# Find all button elements
+buttons = browser.find_elements(By.TAG_NAME, 'roche-tab-nav-button')
+
+# Click each button one by one
+for button in buttons:
+    # Click on the button
+    button.click()
+    time.sleep(2)  # Introducing a short pause to ensure page content loads
+    flag = True 
+    while flag :    
+    
+    # Find all elements containing the links using CSS selector
+        teaser_elements = browser.find_elements(By.CSS_SELECTOR, 'roche-teaser')
+
+        # Iterate through each teaser element and collect the URL
+        for teaser_element in teaser_elements:
+            teaser_url = teaser_element.get_attribute('teaser-url')
+            full_url = f"https://www.roche.com{teaser_url}"
+            print(full_url)
+            links.append(full_url)
+
+        # Find and click on the SVG element to navigate to the next page
+        try:
+            time.sleep(3)
+            svg_element = WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="gatsby-focus-wrapper"]/roche-grid[3]/roche-search-list-container/roche-pagination-container/roche-pagination-button[9]/roche-icon')))
+            
+            browser.execute_script("arguments[0].scrollIntoView(true);", svg_element)
+            time.sleep(3)
+            svg_element.click()
+            time.sleep(3)
+
+        except:
+            print("Could not find or click on the SVG element. End of links for the year.")
+            flag = False
+    #         break  # Exit the loop if SVG element not found or clickable
+
+# Close the browser
+browser.quit()
